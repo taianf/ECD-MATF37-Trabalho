@@ -18,13 +18,23 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from pyspark.ml import Pipeline
+from pyspark.ml.feature import StringIndexer, OneHotEncoder, VectorAssembler
+from pyspark.ml.regression import LinearRegression
+from pyspark.sql import SparkSession
+from pyspark.ml.evaluation import RegressionEvaluator
 
 # In[]:
-movies_dataframe = pd.read_csv("IMDb movies.csv", low_memory=False)
-ratings_dataframe = pd.read_csv("IMDb ratings.csv")
+movies_dataframe = pd.read_csv("IMDb movies.csv", low_memory=False, skipinitialspace=True)
+ratings_dataframe = pd.read_csv("IMDb ratings.csv", skipinitialspace=True)
 # Join do dataframe de filmes com as suas notas
 imdb_df = pd.merge(movies_dataframe, ratings_dataframe, on=["imdb_title_id"])
-imdb_df.info()
+
+# In[]:
+# Limpar espaços em brancos no início e fim dos nomes
+cols = imdb_df.select_dtypes(['object']).columns
+imdb_df[cols] = imdb_df[cols].apply(lambda x: x.str.strip())
+imdb_df
 
 # In[]:
 # Ajuste dos tipos de variáveis:
@@ -92,15 +102,20 @@ imdb_df["first_genre"] = imdb_df["genre"].astype(str).str.split(',').str[0]
 
 # In[]:
 # df1-Correção das datas:
-imdb_df.loc[imdb_df["imdb_title_id"] == "tt8206668", "date_published"] = 2019
+imdb_df.loc[imdb_df["imdb_title_id"] == "tt8206668", "date_published"] = "2019-09-08"
 imdb_df.loc[imdb_df["imdb_title_id"] == "tt8206668", "year"] = 2019
-imdb_df["date_published"] = pd.to_datetime(imdb_df["date_published"], errors="coerce")
+imdb_df["date_published"] = pd.to_datetime(imdb_df["date_published"], errors="ignore")
 
 # In[]:
 # df1-Correção de anos:
 imdb_df["year"] = pd.to_numeric(imdb_df["year"], errors="coerce")
 imdb_df["decade"] = imdb_df["year"] // 10 * 10
-imdb_df.head()
+imdb_df["decade"] = imdb_df["decade"].astype(int)
+imdb_df.info()
+
+# In[]:
+# Extração dos meses
+imdb_df['month'] = pd.DatetimeIndex(imdb_df['date_published']).month
 
 # In[]:
 # Boxplot - Notas por Década:
@@ -175,7 +190,6 @@ plt.grid()
 sns.boxplot(x="duration_rounded", y="avg_vote", data=imdb_df, color='gray')
 # Não é uma boa visualização
 
-
 # In[]:
 # Notas x Duração
 country_by_company = imdb_df.groupby(["duration_rounded"]).agg({"avg_vote": "mean"}).reset_index()
@@ -198,6 +212,8 @@ plot
 
 # In[]:
 # Quantidade de Filmes x Diretor
+imdb_df["director"] = imdb_df["director"].fillna("Non available")
+imdb_df["writer"] = imdb_df["writer"].fillna(imdb_df["director"])
 dfy = imdb_df.groupby(["director"]).agg({"avg_vote": "mean", "imdb_title_id": "count"}).reset_index()
 dfz = dfy.groupby(["imdb_title_id"]).agg({"director": "count"}).reset_index()
 dfz.sort_values(by="imdb_title_id", ascending=False)
@@ -220,3 +236,70 @@ plt.show()
 # In[]:
 # Incluir rótulos
 df1_top_director.head(20)
+
+# In[]:
+# Diretores com pelo menos 5 filmes
+df1_top_director_plus = imdb_df.groupby(["director"]).agg({"avg_vote": ["mean", "count"]})["avg_vote"]
+df1_top_director_plus[df1_top_director_plus["count"] >= 5].sort_values(by="mean", ascending=False).round(1).head(20)
+
+# In[]:
+# Pensando em modelos de regressão
+colunas_relevantes = ['year', 'month', 'duration', 'director', 'production_company', 'avg_vote']
+
+df_colunas_relevantes = imdb_df[colunas_relevantes]
+df_colunas_relevantes.isnull().sum()
+
+# In[]:
+# Create PySpark SparkSession
+spark = SparkSession.builder \
+    .master("local[*]") \
+    .config("spark.driver.memory", "8g") \
+    .appName("ECD_Trabalho") \
+    .getOrCreate()
+# Create PySpark DataFrame from Pandas
+sparkDF = spark.createDataFrame(df_colunas_relevantes)
+sparkDF.printSchema()
+
+# In[]:
+directorIdx = StringIndexer(inputCol='director', outputCol='directorIdx')
+production_company_Idx = StringIndexer(inputCol='production_company', outputCol='production_company_Idx')
+
+onehotencoder_director_vector = OneHotEncoder(inputCol="directorIdx", outputCol="director_vec")
+onehotencoder_production_company_vector = OneHotEncoder(inputCol="production_company_Idx",
+                                                        outputCol="production_company_vec")
+
+pipeline = Pipeline(stages=[directorIdx,
+                            production_company_Idx,
+                            onehotencoder_director_vector,
+                            onehotencoder_production_company_vector,
+                            ])
+
+df_transformed = pipeline.fit(sparkDF).transform(sparkDF)
+df_transformed.show()
+
+# In[]:
+assembler = VectorAssembler(inputCols=["year", "month", "duration", "director_vec", "production_company_vec"],
+                            outputCol="features")
+df = assembler.transform(
+    df_transformed.select(["year", "month", "duration", "director_vec", "production_company_vec", "avg_vote"]))
+df.select(['features', 'avg_vote']).show()
+
+# In[]:
+splits = df.randomSplit([0.7, 0.3])
+train_df = splits[0]
+test_df = splits[1]
+
+# In[]:
+# lr = LinearRegression(featuresCol='features', labelCol='avg_vote', maxIter=10, regParam=0.3, elasticNetParam=0.8)
+lr = LinearRegression(featuresCol='features', labelCol='avg_vote', maxIter=10)
+lr_model = lr.fit(train_df)
+print("Coefficients: " + str(lr_model.coefficients))
+print("Intercept: " + str(lr_model.intercept))
+
+# In[]:
+lr_predictions = lr_model.transform(test_df)
+lr_predictions.select("prediction", "avg_vote", "features").show(5)
+
+# In[]:
+lr_evaluator = RegressionEvaluator(predictionCol="prediction", labelCol="avg_vote", metricName="r2")
+print("R Squared (R2) on test data = %g" % lr_evaluator.evaluate(lr_predictions))
