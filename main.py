@@ -131,9 +131,13 @@ sns.boxplot(x="decade", y="avg_vote", data=imdb_df, color='gray')
 
 # In[]:
 # Boxplot - Bilheteria por Nota:
-plt.subplots(figsize=(15, 7))
-plt.grid()
-sns.boxplot(x="round_vote", y="worlwide_gross_income", data=imdb_df, color='gray')
+#plt.subplots(figsize=(15, 7))
+#plt.grid()
+#imdb_df["worlwide_gross_income"]=imdb_df["worlwide_gross_income"].apply(lambda x: x.str.strip("$ "))
+#imdb_df["worlwide_gross_income"]
+#df_vote_gross = imdb_df.groupby(["round_vote"]).agg({"worlwide_gross_income": "mean"})
+#df_vote_gross.head()
+#sns.boxplot(x="round_vote", y="worlwide_gross_income", data=imdb_df, color='gray')
 
 # In[]:
 # Dados por década
