@@ -114,6 +114,12 @@ imdb_df["decade"] = imdb_df["decade"].astype(int)
 imdb_df.info()
 
 # In[]:
+# df1-Nota Arredondada:
+imdb_df["round_vote"] = round(imdb_df["avg_vote"],0)
+imdb_df["round_vote"] = imdb_df["round_vote"].astype(int)
+imdb_df.head()
+
+# In[]:
 # Extração dos meses
 imdb_df['month'] = pd.DatetimeIndex(imdb_df['date_published']).month
 
@@ -122,6 +128,12 @@ imdb_df['month'] = pd.DatetimeIndex(imdb_df['date_published']).month
 plt.subplots(figsize=(15, 7))
 plt.grid()
 sns.boxplot(x="decade", y="avg_vote", data=imdb_df, color='gray')
+
+# In[]:
+# Boxplot - Bilheteria por Nota:
+plt.subplots(figsize=(15, 7))
+plt.grid()
+sns.boxplot(x="round_vote", y="worlwide_gross_income", data=imdb_df, color='gray')
 
 # In[]:
 # Dados por década
