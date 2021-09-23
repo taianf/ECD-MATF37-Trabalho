@@ -14,15 +14,23 @@
 
 # In[]:
 # Libs:
+import os
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
 from pyspark.ml import Pipeline
+from pyspark.ml.evaluation import RegressionEvaluator
 from pyspark.ml.feature import StringIndexer, OneHotEncoder, VectorAssembler
 from pyspark.ml.regression import LinearRegression
 from pyspark.sql import SparkSession
-from pyspark.ml.evaluation import RegressionEvaluator
+
+# In[]:
+# Para salvar os gráficos depois
+PROJECT_ROOT_DIR = "."
+IMAGES_PATH = os.path.join(PROJECT_ROOT_DIR, "graficos")
+os.makedirs(IMAGES_PATH, exist_ok=True)
 
 # In[]:
 movies_dataframe = pd.read_csv("IMDb movies.csv", low_memory=False, skipinitialspace=True)
@@ -115,7 +123,7 @@ imdb_df.info()
 
 # In[]:
 # df1-Nota Arredondada:
-imdb_df["round_vote"] = round(imdb_df["avg_vote"],0)
+imdb_df["round_vote"] = round(imdb_df["avg_vote"], 0)
 imdb_df["round_vote"] = imdb_df["round_vote"].astype(int)
 imdb_df.head()
 
@@ -128,16 +136,17 @@ imdb_df['month'] = pd.DatetimeIndex(imdb_df['date_published']).month
 plt.subplots(figsize=(15, 7))
 plt.grid()
 sns.boxplot(x="decade", y="avg_vote", data=imdb_df, color='gray')
+plt.savefig(os.path.join(IMAGES_PATH, "notas_decada.png"))
 
 # In[]:
 # Boxplot - Bilheteria por Nota:
-#plt.subplots(figsize=(15, 7))
-#plt.grid()
-#imdb_df["worlwide_gross_income"]=imdb_df["worlwide_gross_income"].apply(lambda x: x.str.strip("$ "))
-#imdb_df["worlwide_gross_income"]
-#df_vote_gross = imdb_df.groupby(["round_vote"]).agg({"worlwide_gross_income": "mean"})
-#df_vote_gross.head()
-#sns.boxplot(x="round_vote", y="worlwide_gross_income", data=imdb_df, color='gray')
+# plt.subplots(figsize=(15, 7))
+# plt.grid()
+# imdb_df["worlwide_gross_income"]=imdb_df["worlwide_gross_income"].apply(lambda x: x.str.strip("$ "))
+# imdb_df["worlwide_gross_income"]
+# df_vote_gross = imdb_df.groupby(["round_vote"]).agg({"worlwide_gross_income": "mean"})
+# df_vote_gross.head()
+# sns.boxplot(x="round_vote", y="worlwide_gross_income", data=imdb_df, color='gray')
 
 # In[]:
 # Dados por década
@@ -148,6 +157,7 @@ imdb_df.groupby(['decade'])['avg_vote'].describe().round(2)
 plt.subplots(figsize=(25, 7))
 plt.grid()
 sns.boxplot(x="first_genre", y="avg_vote", data=imdb_df, color='gray')
+plt.savefig(os.path.join(IMAGES_PATH, 'notas_genero.png'))
 
 # In[]:
 # Dados por Gênero
@@ -163,14 +173,16 @@ sns.boxplot(data=imdb_df, x="first_genre", y="avg_vote", color='gray')
 
 # In[]:
 # Notas x País
-df1_top_country = imdb_df.groupby(["first_country"]).agg({"avg_vote": "mean"})
-df1_top_country.reset_index(inplace=True)
-df1_top_country.sort_values(by='avg_vote', ascending=False, inplace=True)
-df1_top_country = df1_top_country.iloc[0:15, :]
+df1_top_country = imdb_df.groupby(["first_country"]).agg({"avg_vote": ["mean", "count"]})
+# df1_top_country.reset_index(inplace=True)
+df1_top_country = df1_top_country[df1_top_country["avg_vote"]["count"] >= 10]["avg_vote"].drop(["count"], axis=1)
+df1_top_country.sort_values(by='mean', ascending=False, inplace=True)
+df1_top_country = df1_top_country.iloc[0:30, :]
 plt.subplots(figsize=(20, 7))
 plt.grid()
-sns.barplot(x="first_country", y="avg_vote", data=df1_top_country, order=df1_top_country["first_country"], color="gray")
+sns.barplot(x=df1_top_country.index, y="mean", data=df1_top_country, color="gray")
 plt.xticks(rotation=80)
+plt.savefig(os.path.join(IMAGES_PATH, 'notas_pais.png'))
 
 # In[]:
 # Filmes x País
@@ -183,7 +195,7 @@ plt.grid()
 sns.barplot(x="first_country", y="imdb_title_id", data=df1_top_country, order=df1_top_country["first_country"],
             color="gray")
 plt.xticks(rotation=80)
-plt.show()
+plt.savefig(os.path.join(IMAGES_PATH, 'filmes_pais.png'))
 
 # In[]:
 # Duração dos filmes
@@ -191,8 +203,8 @@ plt.subplots(figsize=(15, 7))
 plt.grid()
 plt.xlabel('Duração (min)')
 plt.ylabel('Qtd. Filmes')
-plt.hist(imdb_df['duration'], 15, rwidth=1, color='gray')
-plt.show()
+plt.hist(imdb_df['duration'], 100, rwidth=1, color='gray')
+plt.savefig(os.path.join(IMAGES_PATH, 'duracao_filmes.png'))
 
 # In[]:
 # Duração x Gênero
@@ -247,7 +259,7 @@ plt.subplots(figsize=(20, 7))
 plt.grid()
 sns.barplot(x="director", y="avg_vote", data=df1_top_director, order=df1_top_director["director"], color="gray")
 plt.xticks(rotation=80)
-plt.show()
+plt.savefig(os.path.join(IMAGES_PATH, 'melhores_diretores.png'))
 
 # In[]:
 # Incluir rótulos
@@ -255,8 +267,17 @@ df1_top_director.head(20)
 
 # In[]:
 # Diretores com pelo menos 5 filmes
-df1_top_director_plus = imdb_df.groupby(["director"]).agg({"avg_vote": ["mean", "count"]})["avg_vote"]
-df1_top_director_plus[df1_top_director_plus["count"] >= 5].sort_values(by="mean", ascending=False).round(1).head(20)
+df2_top_director = imdb_df.groupby(["director"]).agg({"avg_vote": ["count"]})
+df2_top_director = df2_top_director[df2_top_director["avg_vote"]["count"] >= 5]
+df3_top_director = imdb_df[imdb_df["director"].isin(df2_top_director.index)].groupby(["director"]).agg(
+    {"avg_vote": ["mean"]})
+df3_top_director = df3_top_director.sort_values(by=("avg_vote", "mean"), ascending=False).round(1)
+df3_top_director = df3_top_director.iloc[0:20, :]
+plt.subplots(figsize=(20, 7))
+plt.grid()
+sns.barplot(x=df3_top_director.index, y=("avg_vote", "mean"), data=df3_top_director, color="gray")
+plt.xticks(rotation=80)
+plt.savefig(os.path.join(IMAGES_PATH, 'melhores_diretores_5_mais.png'))
 
 # In[]:
 # Pensando em modelos de regressão
