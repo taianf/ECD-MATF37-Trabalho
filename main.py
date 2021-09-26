@@ -42,7 +42,7 @@ imdb_df = pd.merge(movies_dataframe, ratings_dataframe, on=["imdb_title_id"])
 # Limpar espaços em brancos no início e fim dos nomes
 cols = imdb_df.select_dtypes(['object']).columns
 imdb_df[cols] = imdb_df[cols].apply(lambda x: x.str.strip())
-imdb_df
+#imdb_df
 
 # In[]:
 # Ajuste dos tipos de variáveis:
@@ -119,7 +119,7 @@ imdb_df["date_published"] = pd.to_datetime(imdb_df["date_published"], errors="ig
 imdb_df["year"] = pd.to_numeric(imdb_df["year"], errors="coerce")
 imdb_df["decade"] = imdb_df["year"] // 10 * 10
 imdb_df["decade"] = imdb_df["decade"].astype(int)
-imdb_df.info()
+# imdb_df.info()
 
 # In[]:
 # df1-Nota Arredondada:
@@ -177,12 +177,25 @@ df1_top_country = imdb_df.groupby(["first_country"]).agg({"avg_vote": ["mean", "
 # df1_top_country.reset_index(inplace=True)
 df1_top_country = df1_top_country[df1_top_country["avg_vote"]["count"] >= 10]["avg_vote"].drop(["count"], axis=1)
 df1_top_country.sort_values(by='mean', ascending=False, inplace=True)
-df1_top_country = df1_top_country.iloc[0:30, :]
+df1_top_country = df1_top_country.iloc[0:15, :]
 plt.subplots(figsize=(20, 7))
 plt.grid()
-sns.barplot(x=df1_top_country.index, y="mean", data=df1_top_country, color="gray")
+ax=sns.barplot(x=df1_top_country.index, y="mean", data=df1_top_country, color="gray")
+ax.set(xlabel='Países', ylabel='Média dos Filmes')
 plt.xticks(rotation=80)
 plt.savefig(os.path.join(IMAGES_PATH, 'notas_pais.png'))
+#Ranking de Países que produziram mais de 263 filmes (3º Quartil):
+df1_top_country = imdb_df.groupby(["first_country"]).agg({"avg_vote": ["mean", "count"]})
+# df1_top_country.reset_index(inplace=True)
+df1_top_country = df1_top_country[df1_top_country["avg_vote"]["count"] >= 263]["avg_vote"].drop(["count"], axis=1)
+df1_top_country.sort_values(by='mean', ascending=False, inplace=True)
+df1_top_country = df1_top_country.iloc[0:15, :]
+plt.subplots(figsize=(20, 7))
+plt.grid()
+ax=sns.barplot(x=df1_top_country.index, y="mean", data=df1_top_country, color="gray")
+ax.set(xlabel='Países', ylabel='Média dos Filmes')
+plt.xticks(rotation=80)
+plt.savefig(os.path.join(IMAGES_PATH, 'notas_pais_263_filmes.png'))
 
 # In[]:
 # Filmes x País
@@ -192,10 +205,26 @@ df1_top_country.sort_values(by='imdb_title_id', ascending=False, inplace=True)
 df1_top_country = df1_top_country.iloc[0:15, :]
 plt.subplots(figsize=(20, 7))
 plt.grid()
-sns.barplot(x="first_country", y="imdb_title_id", data=df1_top_country, order=df1_top_country["first_country"],
+ax=sns.barplot(x="first_country", y="imdb_title_id", data=df1_top_country, order=df1_top_country["first_country"],
             color="gray")
+ax.set(xlabel='Países', ylabel='Qtd. de Filmes')
 plt.xticks(rotation=80)
 plt.savefig(os.path.join(IMAGES_PATH, 'filmes_pais.png'))
+imdb_df["first_country"].describe()
+
+# In[]:
+#Ranking de Países:
+df1_rank_country = imdb_df.groupby(["first_country"]).agg({"imdb_title_id": "count"})
+df1_rank_country.reset_index(inplace=True)
+df1_rank_country.sort_values(by='imdb_title_id', ascending=False, inplace=True)
+#Países com apenas 1 produção:
+df1_rank_country[df1_rank_country['imdb_title_id']==1].count()
+#Situação do Brasil:
+df1_rank_country[df1_rank_country['first_country']=='Brazil']
+#Ranking 50:
+df1_rank_country.head(50)
+#Dados Gerais:
+df1_rank_country.describe()
 
 # In[]:
 # Duração dos filmes
@@ -205,8 +234,7 @@ plt.xlabel('Duração (min)')
 plt.ylabel('Qtd. Filmes')
 plt.hist(imdb_df['duration'], 100, rwidth=1, color='gray')
 plt.savefig(os.path.join(IMAGES_PATH, 'duracao_filmes.png'))
-sns.boxplot(data=imdb_df, x="duration", y="imdb_title_id", color='gray')
-plt.savefig(os.path.join(IMAGES_PATH, 'duracao_filmes_bp.png'))
+imdb_df['duration'].describe()
 
 # In[]:
 # Duração x Gênero
