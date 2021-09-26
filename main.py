@@ -205,6 +205,8 @@ plt.xlabel('Duração (min)')
 plt.ylabel('Qtd. Filmes')
 plt.hist(imdb_df['duration'], 100, rwidth=1, color='gray')
 plt.savefig(os.path.join(IMAGES_PATH, 'duracao_filmes.png'))
+sns.boxplot(data=imdb_df, x="duration", y="imdb_title_id", color='gray')
+plt.savefig(os.path.join(IMAGES_PATH, 'duracao_filmes_bp.png'))
 
 # In[]:
 # Duração x Gênero
